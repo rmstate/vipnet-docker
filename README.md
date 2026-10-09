@@ -1,131 +1,58 @@
-# ViPNet Client 5 в Docker — Arch Linux / Omarchy
+# ViPNet Client 5 — Docker Networking Lab
 
-Практический проект по интеграции ViPNet Client for Linux с Docker на Arch Linux / Omarchy. Позволяет использовать VPN-туннель внутри контейнера и организовать доступ к разрешённым защищённым ресурсам непосредственно с хоста.
+A Docker-based ViPNet Client 5 networking lab for Arch Linux and Omarchy.
 
-**Проверенная среда:** Arch Linux / Omarchy, Docker Engine, ViPNet Client 5.0.0-7877 (amd64).
+Run ViPNet Client 5 in a container and route selected traffic through the VPN tunnel using Linux networking, packet forwarding, and NAT.
 
-## Что реализовано
+## Features
 
-- Запуск ViPNet Client 5 в Docker-контейнере.
-- Подключение VPN и получение адреса на интерфейсе `tun0`.
-- Маршрутизация трафика от Linux-хоста через контейнер.
-- IPv4 forwarding и SNAT для выбранного защищённого ресурса.
-- Проверка маршрутов и правил firewall.
-- Диагностика сетевой связности и обратного трафика.
-- Скрипты для настройки маршрута, проверки состояния и очистки созданных правил.
+- **Containerized VPN client** — run ViPNet Client 5 in Docker.
+- **VPN routing** — route selected traffic through the VPN tunnel.
+- **IP forwarding** — forward packets between network interfaces.
+- **NAT** — configure source NAT for routed traffic.
+- **Network diagnostics** — inspect interfaces, routing tables, forwarding, and connectivity.
+- **Arch Linux / Omarchy** — developed and tested on an Arch-based environment.
 
-## Архитектура
+## Architecture
 
-\`\`\`text
-Arch Linux / Omarchy
-        |
-        | Браузер и приложения хоста
-        |
-        v
-Маршрут к защищённому ресурсу
-        |
-        v
-Docker-контейнер
-        |
-        +-- eth0: Docker-сеть
-        |
-        +-- ViPNet Client 5
-                 |
-                 +-- tun0
-                       |
-                       v
-                Защищённая сеть
-                       |
-                       v
-                Целевой ресурс
-\`\`\`
+The container runs ViPNet Client 5 and establishes the VPN tunnel. Host and container networking rules control how selected traffic reaches remote networks through that tunnel.
 
-Контейнер выполняет маршрутизацию и трансляцию исходного адреса для выбранного назначения. На хосте настраивается маршрут к целевому IPv4-адресу через Docker-контейнер.
+## Project structure
 
-Конкретные адреса, интерфейсы, правила firewall и параметры запуска зависят от VPN-конфигурации и окружения.
+| File or directory | Purpose |
+|---|---|
+| `Dockerfile` | Container image definition |
+| `scripts/route.sh` | Routing and network configuration |
+| `scripts/diagnose.sh` | Network diagnostics |
+| `docs/` | Installation, configuration, routing, and troubleshooting guides |
 
-## Структура проекта
+## Documentation
 
-\`\`\`text
-.
-├── Dockerfile
-├── .dockerignore
-├── .gitignore
-├── README.md
-├── docs/
-│   ├── 01-installation.md
-│   ├── 02-keys-and-startup.md
-│   ├── 03-routing-and-connectivity.md
-│   └── 04-troubleshooting.md
-└── scripts/
-    ├── diagnose.sh
-    └── route.sh
-\`\`\`
+1. [Installation](docs/01-installation.md)
+2. [Keys and startup](docs/02-keys-and-startup.md)
+3. [Routing and connectivity](docs/03-routing-and-connectivity.md)
+4. [Troubleshooting](docs/04-troubleshooting.md)
 
-Каталоги с локальными файлами ViPNet и резервными копиями намеренно не включаются в публичный репозиторий.
+## Requirements
 
-## Документация
+- Arch Linux or Omarchy
+- Docker Engine and Docker Compose
+- ViPNet Client 5 installation package
+- Valid ViPNet configuration and key material
 
-1. [Получение дистрибутива и сборка](docs/01-installation.md)
-2. [DST и запуск клиента](docs/02-keys-and-startup.md)
-3. [Маршруты и обратный трафик](docs/03-routing-and-connectivity.md)
-4. [Диагностика](docs/04-troubleshooting.md)
+## Getting started
 
-## Использование сетевого скрипта
+Clone the repository:
 
-Проверьте доступность Docker, имя работающего контейнера и наличие интерфейса `tun0`. Скрипт по умолчанию использует контейнер `vipnet-diag`.
+```bash
+git clone https://github.com/rmstate/vipnet-docker.git
+cd vipnet-docker
+```
 
-Проверка состояния:
+Follow the [installation guide](docs/01-installation.md) to prepare the client package, configure the environment, and start the container.
 
-\`\`\`bash
-sudo env TARGET_IP=192.0.2.10 ./scripts/route.sh check
-\`\`\`
+## Scope
 
-Применение настройки:
+This project demonstrates containerized VPN networking, Linux routing, packet forwarding, and NAT in a lab environment.
 
-\`\`\`bash
-sudo env TARGET_IP=192.0.2.10 ./scripts/route.sh apply
-\`\`\`
-
-Удаление настройки:
-
-\`\`\`bash
-sudo env TARGET_IP=192.0.2.10 ./scripts/route.sh remove
-\`\`\`
-
-**Важно:** `192.0.2.10` — документационный пример из диапазона TEST-NET-1, а не адрес реального VPN-ресурса. Перед использованием укажите IPv4-адрес разрешённого ресурса в своей среде.
-
-Перед применением скрипта изучите его поведение и текущую таблицу маршрутизации. Не запускайте команды вслепую на рабочей системе.
-
-## Диагностика
-
-Для сбора базовой информации о Linux-хосте и контейнере:
-
-\`\`\`bash
-bash scripts/diagnose.sh
-\`\`\`
-
-Перед передачей отчёта третьим лицам удалите внутренние IP-адреса, имена узлов, сведения о VPN и другие конфиденциальные данные.
-
-## Безопасность и распространение
-
-Репозиторий содержит собственные скрипты и документацию, но не распространяет проприетарные компоненты ViPNet.
-
-- Получайте клиент только через официальный или разрешённый организацией канал.
-- Не добавляйте в Git установочные пакеты `.deb`, DST-файлы, ключи, корпоративные конфигурации и распакованные файлы вендора.
-- Не публикуйте собранные образы, архивы контейнеров и диагностические дампы, содержащие компоненты ViPNet или секреты.
-- Не используйте `--privileged` как универсальное решение проблем с правами.
-- Проверяйте изменения firewall и маршрутов до применения и после удаления.
-- Помните, что `.gitignore` не удаляет уже отслеживаемые файлы и не очищает историю Git.
-
-`CAP_SYS_ADMIN` предоставляет широкие полномочия. Добавляйте его только при подтверждённой необходимости и с учётом модели угроз.
-
-## Ограничения
-
-Проверена конкретная конфигурация Arch Linux / Omarchy и ViPNet Client 5.0.0-7877 (amd64). Совместимость с другими версиями клиента, ядрами, дистрибутивами и сетевыми топологиями отдельно не подтверждена.
-
-Успешное создание туннеля не гарантирует доступность каждого ресурса. При отсутствии ответа необходимо отдельно проверить обратный маршрут, firewall, NAT и состояние удалённого узла.
-
-## Лицензирование
-
-Лицензия данного репозитория распространяется только на собственный код проекта и документацию. Она не предоставляет прав на распространение ViPNet Client, DST, ключевых материалов или других компонентов третьих лиц.
+Actual connectivity depends on the ViPNet configuration, host networking, firewall rules, and the destination network.
