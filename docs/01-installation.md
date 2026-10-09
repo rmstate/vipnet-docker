@@ -1,55 +1,56 @@
-# 1. Получение дистрибутива и сборка
+# Installation
 
-## Требования
-- Arch Linux / Omarchy с Docker Engine;
-- пакет ViPNet Client for Linux x64, который вы вправе использовать;
-- DST и параметры подключения для вашей тестовой среды.
+This guide prepares the local ViPNet Client 5 files and builds the container image.
 
-Исходный кейс использовал ViPNet Client `5.0.0-7877`, amd64. Другие версии могут вести себя иначе.
+## Requirements
 
-## Где получить пакет
-Откройте [официальный сайт Infotecs](https://infotecs.ru/) и найдите раздел ViPNet Client / загрузок для Linux. Если дистрибутив не доступен для свободной загрузки, запросите его у администратора организации или через официальный канал поставки/поддержки. Не используйте случайные файлообменники. Проверьте источник и контрольную сумму, если производитель её публикует.
+- Arch Linux or Omarchy with Docker Engine available.
+- `dpkg-deb` for extracting the Debian package. On Arch, install a compatible package/tooling that provides it if it is not already available.
+- A ViPNet Client for Linux x86-64 package you are authorized to use.
+- The configuration and key material issued for your test environment.
 
-## Куда положить пакет
-В этом примере используется имя пакета из лаборатории. Если у вас другое имя, замените путь в командах на фактический:
+The original lab used `vipnetclient_gost_amd64_5.0.0-7877.deb` (version `5.0.0-7877`). Other releases may have different dependencies or behavior.
+
+## Obtain the client package
+
+Obtain the package from the official [Infotecs website](https://infotecs.ru/) or your organization's authorized software distribution channel. Do not use untrusted file-sharing sites.
+
+In the examples below, the downloaded package is located at:
+
+```text
+~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
+```
+
+If your filename or location differs, update the commands accordingly.
+
+Inspect the package metadata:
 
 ```bash
-cd ~/Projects/vipnet-docker-lab
-mkdir -p local/package
-
 file ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
 dpkg-deb --info ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
 ```
 
-## Извлечение файлов
-Текущий Dockerfile копирует уже извлечённое содержимое из `local/package/`, а не устанавливает `.deb` через `dpkg -i`. Поэтому выполните:
+## Prepare the local package files
+
+Run these commands from the repository root:
 
 ```bash
 cd ~/Projects/vipnet-docker-lab
+mkdir -p local/package
 dpkg-deb -x ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb local/package/
-```
-
-Проверьте структуру:
-
-```bash
 find local/package -maxdepth 3 -type d | sort | head -80
 ```
 
-`local/package/` содержит проприетарные файлы и не должен публиковаться. Не запускайте пакетные скрипты ViPNet на хосте в качестве обходного пути.
+The Dockerfile copies the extracted package contents from `local/package/` into the image; it does not install the `.deb` inside the image.
 
-## Сборка
+`local/package/` contains proprietary vendor files and is excluded from Git by `.gitignore`. Keep the original package, extracted files, keys, and configuration out of public repositories and public container registries.
+
+## Build the image
+
 ```bash
 cd ~/Projects/vipnet-docker-lab
 sudo docker build -t vipnet5-lab:test .
 sudo docker image inspect vipnet5-lab:test --format '{{.Id}}'
 ```
 
-Не публикуйте образ в открытый registry: он содержит файлы вендора.
-
-## Проверка перед публикацией
-```bash
-find . -type f \( -name '*.dst' -o -name '*.deb' -o -name '*.enc' -o -name '*.pem' -o -name '*.key' -o -name '*.crt' \) -not -path './.git/*' -print
-git status --short
-```
-
-Проверьте все staged-файлы перед коммитом. Если секрет попал в историю Git, простого удаления файла недостаточно.
+The image build confirms that Docker can assemble the image; it does not confirm that the VPN is connected or that routing works. Continue with [Keys and startup](02-keys-and-startup.md).

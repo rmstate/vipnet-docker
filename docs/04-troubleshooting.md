@@ -1,26 +1,47 @@
-# 4. Диагностика
+# Troubleshooting
 
-## Клиент запущен, но VPN выключен
+Use the checks below to narrow down whether a problem is with the client, the tunnel, routing, or the return path.
+
+## 1. Check container and client state
+
 ```bash
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> vipnetclient info
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> ip -br addr
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> ip route
+sudo docker ps
+sudo docker exec CONTAINER_NAME vipnetclient info
+sudo docker exec CONTAINER_NAME ip -br addr
+sudo docker exec CONTAINER_NAME ip route
 ```
-Сначала подтвердите, что ключи импортированы и проверены. До этого тест маршрутизации через VPN не показателен.
 
-## `Operation not permitted` при монтировании
-В лабораторном эксперименте клиент не смог перемонтировать внутренний каталог; в журнале была ошибка `Operation not permitted`. При диагностическом запуске с `CAP_SYS_ADMIN` начальное монтирование `ramfs` прошло успешно.
+Replace `CONTAINER_NAME` with the actual container name.
 
-`CAP_SYS_ADMIN` — широкая привилегия. Это наблюдение конкретной конфигурации, а не рекомендация добавлять её автоматически. Не используйте `--privileged` как первый шаг.
+If the client is running but the VPN is not connected, confirm that the intended configuration and key material were imported successfully and that the client reports a connected state. Do not treat a running process as proof of connectivity.
 
-## Туннель есть, но ответа нет
-Проверьте маршрут до цели, пакеты на соответствующих интерфейсах, обратный маршрут, firewall и NAT. Отсутствующий SYN-ACK может быть связан с удалённым узлом или промежуточной сетью, а не только с ViPNet.
+## 2. `Operation not permitted` during mount operations
 
-## Сбор отчёта
-Из корня репозитория:
+In the original lab, the client failed to remount an internal directory and logged `Operation not permitted`. In a diagnostic run, adding `CAP_SYS_ADMIN` allowed the initial `ramfs` mount to succeed.
+
+`CAP_SYS_ADMIN` is a broad capability. This is an observation from one configuration, not a universal requirement. Confirm the exact operation and required permissions before changing container capabilities; do not make `--privileged` the default fix.
+
+## 3. Tunnel is present, but there is no response
+
+Check the route to the target on both the host and inside the container:
+
+```bash
+ip route get TARGET_IP
+sudo docker exec CONTAINER_NAME ip route get TARGET_IP
+```
+
+Then inspect packets on the relevant interfaces. Confirm whether the request leaves through the tunnel and whether a response returns. Also check IP forwarding, firewall rules, NAT, and the remote network's return route.
+
+If a SYN leaves but no SYN-ACK returns, the failure may be at the destination or elsewhere along the path.
+
+## 4. Collect diagnostic information
+
+Run the bundled diagnostic script from the repository root:
 
 ```bash
 bash scripts/diagnose.sh
 ```
 
-Перед публикацией вывода удалите внутренние адреса и имена узлов. Не отправляйте DST, ключи, конфигурации или логи с секретами.
+The script collects system information, Docker status, host interfaces and routes, forwarding settings, and information from known ViPNet container names. Some commands may require Docker permissions.
+
+Review the output before sharing it. Remove internal IP addresses, hostnames, usernames, and other environment-specific details as needed. Never share DST files, private keys, or configuration files containing secrets.

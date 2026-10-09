@@ -1,33 +1,42 @@
-# 2. DST и запуск клиента
+# Keys and startup
 
-## DST
-Используйте только ключевой файл, выданный для вашей тестовой сети и разрешённый к использованию. Например, храните его вне репозитория в `~/Downloads/client.dst`.
+This guide covers handling the DST file and checking the client after it has been started.
+
+## Keep the DST file outside the repository
+
+Use only key material issued for your test environment. For example, keep the file at `~/Downloads/client.dst`, outside the project directory.
+
+Check that the file exists and is readable without printing its contents:
 
 ```bash
-test -r "$HOME/Downloads/client.dst" && echo "DST доступен для чтения"
+test -r "$HOME/Downloads/client.dst" && echo "DST file is readable"
 ```
 
-Не выводите содержимое ключа и не публикуйте его.
+Do not commit the DST file or include it in an image.
 
-## Передача в контейнер
-Пример bind mount, который делает файл доступным только для чтения:
+## Make the file available to a container
+
+A read-only bind mount can expose the file to a container:
 
 ```bash
 -v "$HOME/Downloads/client.dst:/run/secrets/client.dst:ro"
 ```
 
-Это только монтирование файла, а не импорт ключей. Проверьте документацию и справку именно вашей версии ViPNet Client, чтобы определить поддерживаемый путь и команду импорта. Не копируйте команды для ViPNet Client 4 без проверки совместимости с 5.0.0-7877.
+This mount only makes the file available; it does not import the key into ViPNet. The import procedure depends on the installed ViPNet Client version and its supported configuration workflow. Follow the documentation supplied with your client build rather than assuming that commands for ViPNet Client 4 also apply to version 5.
 
-## Проверка состояния
-После запуска клиента:
+Do not add `COPY client.dst` to the Dockerfile. Avoid publishing images, container exports, or archives created after secrets have been added to a container: key material may remain in image layers or the container filesystem.
+
+## Check client state
+
+Once your container is running, replace `CONTAINER_NAME` with its actual name:
 
 ```bash
 sudo docker ps
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> vipnetclient info
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> ip -br addr
-sudo docker exec <ИМЯ_КОНТЕЙНЕРА> ip route
+sudo docker exec CONTAINER_NAME vipnetclient info
+sudo docker exec CONTAINER_NAME ip -br addr
+sudo docker exec CONTAINER_NAME ip route
 ```
 
-Замените `<ИМЯ_КОНТЕЙНЕРА>` фактическим именем и не копируйте угловые скобки буквально. Успешный запуск процесса не доказывает, что VPN подключён: нужно проверить ключи, состояние клиента, туннельный интерфейс и маршруты.
+These commands show the container state, network interfaces, and routing table. A running process alone does not prove that the VPN is connected. Confirm the client status, the tunnel interface, and the expected routes before testing traffic.
 
-Не используйте `COPY client.dst` в Dockerfile и не публикуйте `docker commit`, `docker export` или архив контейнера после импорта ключей. Секреты могут остаться в слоях образа или файловой системе контейнера.
+Continue with [Routing and connectivity](03-routing-and-connectivity.md).
