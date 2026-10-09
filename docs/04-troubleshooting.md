@@ -1,47 +1,51 @@
-# Troubleshooting
+# Диагностика неисправностей
 
-Use the checks below to narrow down whether a problem is with the client, the tunnel, routing, or the return path.
+Используйте проверки в порядке от состояния клиента к маршрутизации и затем к обратному пути. Не делайте вывод о виновнике по одному симптому.
 
-## 1. Check container and client state
+## Быстрая таблица
+
+| Симптом | Что проверить | Возможное объяснение |
+|---|---|---|
+| Контейнер не запускается | `docker ps -a`, `docker logs ИМЯ_КОНТЕЙНЕРА` | Ошибка запуска или несовместимые файлы |
+| Нет `tun0` | `vipnetclient info`, `ip -br addr` внутри контейнера | Клиент не подключился либо туннель не создан |
+| Хост идёт не через контейнер | `ip route get TARGET_IP` | Отсутствует или перекрыт маршрут `/32` |
+| В контейнере нет маршрута через `tun0` | `ip route get TARGET_IP` внутри контейнера | Маршрут ViPNet не установлен или цель не охвачена конфигурацией |
+| Запрос не покидает `eth0` | Проверить `ip_forward`, `FORWARD`, `tcpdump` | Forwarding выключен или пакет блокирует firewall |
+| Запрос уходит через `tun0`, ответа нет | Проверить удалённый узел, ACL и обратный маршрут | Нет доступности на удалённой стороне или ответ идёт другим путём |
+| Ошибка `Operation not permitted` при mount | Определить точную операцию и capabilities | Контейнеру может не хватать разрешения; не добавляйте привилегии вслепую |
+
+## 1. Состояние контейнера и клиента
 
 ```bash
-sudo docker ps
-sudo docker exec CONTAINER_NAME vipnetclient info
-sudo docker exec CONTAINER_NAME ip -br addr
-sudo docker exec CONTAINER_NAME ip route
+sudo docker ps -a
+sudo docker logs --tail 100 ИМЯ_КОНТЕЙНЕРА
+sudo docker exec ИМЯ_КОНТЕЙНЕРА vipnetclient info
+sudo docker exec ИМЯ_КОНТЕЙНЕРА ip -br addr
+sudo docker exec ИМЯ_КОНТЕЙНЕРА ip route
 ```
 
-Replace `CONTAINER_NAME` with the actual container name.
+Имя контейнера нужно заменить фактическим. В текущем Dockerfile команда по умолчанию — `vipnetclient --help`; сама сборка образа не означает, что VPN-клиент уже подключён.
 
-If the client is running but the VPN is not connected, confirm that the intended configuration and key material were imported successfully and that the client reports a connected state. Do not treat a running process as proof of connectivity.
+## 2. `Operation not permitted` при mount
 
-## 2. `Operation not permitted` during mount operations
+В одной из лабораторных конфигураций клиент не мог перемонтировать внутренний каталог, а добавление `CAP_SYS_ADMIN` позволило пройти начальную операцию `ramfs mount`. Это наблюдение только для конкретного сценария, а не универсальное требование ViPNet.
 
-In the original lab, the client failed to remount an internal directory and logged `Operation not permitted`. In a diagnostic run, adding `CAP_SYS_ADMIN` allowed the initial `ramfs` mount to succeed.
+`CAP_SYS_ADMIN` — широкая capability. Сначала установите, какая именно операция не проходит, проверьте сообщения журнала и минимально необходимые права. Не используйте `--privileged` как стандартный способ исправления.
 
-`CAP_SYS_ADMIN` is a broad capability. This is an observation from one configuration, not a universal requirement. Confirm the exact operation and required permissions before changing container capabilities; do not make `--privileged` the default fix.
-
-## 3. Tunnel is present, but there is no response
-
-Check the route to the target on both the host and inside the container:
+## 3. Туннель есть, ответа нет
 
 ```bash
 ip route get TARGET_IP
-sudo docker exec CONTAINER_NAME ip route get TARGET_IP
+sudo docker exec ИМЯ_КОНТЕЙНЕРА ip route get TARGET_IP
+sudo env TARGET_IP=АДРЕС ./scripts/route.sh check
 ```
 
-Then inspect packets on the relevant interfaces. Confirm whether the request leaves through the tunnel and whether a response returns. Also check IP forwarding, firewall rules, NAT, and the remote network's return route.
+Проверьте адрес назначения, маршрут, forwarding, порядок правил `iptables`, SNAT и обратную маршрутизацию. Сравните пакеты на хосте и внутри контейнера. Снимки трафика могут содержать конфиденциальные адреса и данные — проверьте их до передачи кому-либо.
 
-If a SYN leaves but no SYN-ACK returns, the failure may be at the destination or elsewhere along the path.
-
-## 4. Collect diagnostic information
-
-Run the bundled diagnostic script from the repository root:
+## 4. Собрать диагностический отчёт
 
 ```bash
 bash scripts/diagnose.sh
 ```
 
-The script collects system information, Docker status, host interfaces and routes, forwarding settings, and information from known ViPNet container names. Some commands may require Docker permissions.
-
-Review the output before sharing it. Remove internal IP addresses, hostnames, usernames, and other environment-specific details as needed. Never share DST files, private keys, or configuration files containing secrets.
+Скрипт собирает версию ОС, сведения Docker, интерфейсы и маршруты хоста, forwarding и информацию о нескольких известных именах контейнеров. Некоторые команды требуют прав доступа к Docker. Перед отправкой отчёта удалите внутренние адреса, имена узлов, идентификаторы и любые чувствительные сведения. Не отправляйте DST, ключи или резервные копии клиентского состояния.

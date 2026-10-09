@@ -1,58 +1,109 @@
 # ViPNet Client 5 — Docker Networking Lab
 
-A Docker-based ViPNet Client 5 networking lab for Arch Linux and Omarchy.
+Лабораторный стенд для исследования маршрутизации выбранного IPv4-трафика через ViPNet Client 5, запущенный в Docker на Arch Linux / Omarchy.
 
-Run ViPNet Client 5 in a container and route selected traffic through the VPN tunnel using Linux networking, packet forwarding, and NAT.
+> **Статус:** сетевые диагностические скрипты и сценарий точечной маршрутизации подготовлены для лабораторного использования. Полный автоматический bootstrap ViPNet здесь намеренно не заявлен: импорт DST и штатный запуск клиента зависят от версии и поставки ViPNet Client. Используйте процедуру, подтверждённую документацией вашей организации.
 
-## Features
+## Что демонстрирует проект
 
-- **Containerized VPN client** — run ViPNet Client 5 in Docker.
-- **VPN routing** — route selected traffic through the VPN tunnel.
-- **IP forwarding** — forward packets between network interfaces.
-- **NAT** — configure source NAT for routed traffic.
-- **Network diagnostics** — inspect interfaces, routing tables, forwarding, and connectivity.
-- **Arch Linux / Omarchy** — developed and tested on an Arch-based environment.
+- запуск Linux-клиента ViPNet внутри отдельного network namespace;
+- проверку интерфейсов, таблиц маршрутизации и состояния туннеля;
+- точечный маршрут на хосте к одному IPv4-адресу через IP контейнера (без перезаписи уже существующего маршрута);
+- выделенные цепочки `iptables`, forwarding и SNAT внутри контейнера для выбранного назначения;
+- сбор диагностической информации без автоматического изменения сетевых настроек.
 
-## Architecture
+## Схема
 
-The container runs ViPNet Client 5 and establishes the VPN tunnel. Host and container networking rules control how selected traffic reaches remote networks through that tunnel.
-
-## Project structure
-
-| File or directory | Purpose |
-|---|---|
-| `Dockerfile` | Container image definition |
-| `scripts/route.sh` | Routing and network configuration |
-| `scripts/diagnose.sh` | Network diagnostics |
-| `docs/` | Installation, configuration, routing, and troubleshooting guides |
-
-## Documentation
-
-1. [Installation](docs/01-installation.md)
-2. [Keys and startup](docs/02-keys-and-startup.md)
-3. [Routing and connectivity](docs/03-routing-and-connectivity.md)
-4. [Troubleshooting](docs/04-troubleshooting.md)
-
-## Requirements
-
-- Arch Linux or Omarchy
-- Docker Engine and Docker Compose
-- ViPNet Client 5 installation package
-- Valid ViPNet configuration and key material
-
-## Getting started
-
-Clone the repository:
-
-```bash
-git clone https://github.com/rmstate/vipnet-docker.git
-cd vipnet-docker
+```mermaid
+flowchart LR
+    A["Приложение на хосте"] --> B["Маршрут TARGET_IP/32"]
+    B --> C["Docker bridge / eth0"]
+    C --> D["Контейнер ViPNet"]
+    D --> E["tun0"]
+    E --> F["Защищённый ресурс"]
+    F -. "ответный трафик" .-> E
+    E -.-> D
+    D -.-> C
+    C -.-> A
 ```
 
-Follow the [installation guide](docs/01-installation.md) to prepare the client package, configure the environment, and start the container.
+Маршрут на хосте и правила внутри контейнера — разные уровни. Наличие `tun0` само по себе не гарантирует доступность ресурса: должны совпасть маршрут, forwarding, фильтрация, SNAT и обратный путь.
 
-## Scope
+## Структура репозитория
 
-This project demonstrates containerized VPN networking, Linux routing, packet forwarding, and NAT in a lab environment.
+| Путь | Назначение |
+|---|---|
+| `Dockerfile` | Базовый образ и локальные файлы клиентского пакета |
+| `scripts/route.sh` | Применение, проверка и удаление точечного маршрута |
+| `scripts/diagnose.sh` | Сбор сведений о хосте, Docker и контейнере |
+| `docs/` | Установка, работа с ключами, маршрутизация и диагностика |
+| `SECURITY.md` | Правила безопасной работы с локальными файлами |
 
-Actual connectivity depends on the ViPNet configuration, host networking, firewall rules, and the destination network.
+## Требования
+
+- Arch Linux / Omarchy или совместимый Linux-хост;
+- Docker Engine;
+- пакет ViPNet Client for Linux x86-64, который разрешено использовать;
+- конфигурация и ключевой материал для тестового контура;
+- `iproute2`, `iptables` и `python3` на хосте для `scripts/route.sh`.
+
+Docker Compose в репозитории не предоставлен; команды ниже не предполагают наличие Compose-файла.
+
+## Подготовка и сборка
+
+1. Получите пакет только из официального или корпоративного источника.
+2. Следуйте [инструкции установки](docs/01-installation.md), чтобы распаковать файлы пакета в `local/package/`.
+3. Соберите образ:
+
+```bash
+sudo docker build -t vipnet5-lab:test .
+```
+
+Сборка образа **не означает**, что клиент подключён к VPN. Текущий `Dockerfile` задаёт команду по умолчанию `vipnetclient --help`; это безопасная проверка наличия бинарного файла, а не автоматический запуск VPN. См. [запуск и ключи](docs/02-keys-and-startup.md).
+
+## Маршрутизация одного ресурса
+
+После того как вы отдельно запустили клиент по поддерживаемой для вашей версии процедуре и подтвердили наличие `eth0`, `tun0` и подключённое состояние, можно применить маршрут. Используйте только адрес ресурса, к которому у вас есть разрешение на тестирование.
+
+```bash
+sudo env TARGET_IP=192.0.2.10 ./scripts/route.sh check
+sudo env TARGET_IP=192.0.2.10 ./scripts/route.sh apply
+```
+
+`192.0.2.10` — документационный адрес-заглушка. Замените его реальным адресом разрешённого тестового ресурса. По умолчанию скрипт ожидает имя контейнера `vipnet-diag`; если у вас другое имя:
+
+```bash
+sudo env CONTAINER=ИМЯ_КОНТЕЙНЕРА TARGET_IP=АДРЕС ./scripts/route.sh check
+```
+
+Чтобы убрать созданные скриптом правила и маршрут, пока контейнер и `tun0` доступны:
+
+```bash
+sudo env TARGET_IP=АДРЕС ./scripts/route.sh remove
+```
+
+Скрипт не меняет глобальную политику firewall и не включает forwarding автоматически. Он использует выделенные цепочки для выбранного адреса, не перезаписывает существующий маршрут и хранит отметку о маршруте, который создал сам, в `/run`. Если файл состояния потерян, `remove` намеренно не удаляет маршрут. Старые правила от прежних версий нужно проверить вручную. Подробности и ограничения — в [руководстве по маршрутизации](docs/03-routing-and-connectivity.md).
+
+## Диагностика
+
+```bash
+bash scripts/diagnose.sh
+```
+
+Перед отправкой отчёта кому-либо проверьте и удалите внутренние адреса, имена узлов, идентификаторы, сведения о VPN и другие чувствительные данные. Скрипт не выводит содержимое DST-файлов, но некоторые команды клиента могут раскрывать метаданные окружения.
+
+## Ограничения
+
+- Проверено в конкретной лабораторной конфигурации; другие версии клиента могут отличаться.
+- Импорт ключевого материала и запуск клиента не автоматизированы универсальной командой.
+- Скрипт маршрутизации ориентирован на IPv4 и интерфейсы `eth0` / `tun0`.
+- Реальная доступность зависит от сетевых политик, firewall, маршрутов удалённой сети и обратного пути.
+- Не используйте `--privileged` как универсальное решение проблем с правами.
+
+## Документация
+
+1. [Установка](docs/01-installation.md)
+2. [Ключи и запуск](docs/02-keys-and-startup.md)
+3. [Маршрутизация и связность](docs/03-routing-and-connectivity.md)
+4. [Диагностика неисправностей](docs/04-troubleshooting.md)
+5. [Безопасность локальных файлов](SECURITY.md)

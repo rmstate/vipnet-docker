@@ -1,38 +1,36 @@
-# Installation
+# Установка и сборка образа
 
-This guide prepares the local ViPNet Client 5 files and builds the container image.
+Руководство подготавливает локальные файлы ViPNet Client 5 и собирает Docker-образ. Оно не выполняет импорт ключей и не подключает VPN автоматически.
 
-## Requirements
+## Требования
 
-- Arch Linux or Omarchy with Docker Engine available.
-- `dpkg-deb` for extracting the Debian package. On Arch, install a compatible package/tooling that provides it if it is not already available.
-- A ViPNet Client for Linux x86-64 package you are authorized to use.
-- The configuration and key material issued for your test environment.
+- Arch Linux / Omarchy с работающим Docker Engine;
+- `dpkg-deb` для распаковки Debian-пакета;
+- разрешённый к использованию пакет ViPNet Client for Linux x86-64;
+- конфигурация и ключевой материал для тестового контура.
 
-The original lab used `vipnetclient_gost_amd64_5.0.0-7877.deb` (version `5.0.0-7877`). Other releases may have different dependencies or behavior.
+В исходной лаборатории использовался `vipnetclient_gost_amd64_5.0.0-7877.deb` (версия `5.0.0-7877`). У других релизов могут отличаться зависимости и поведение.
 
-## Obtain the client package
+## Получение пакета
 
-Obtain the package from the official [Infotecs website](https://infotecs.ru/) or your organization's authorized software distribution channel. Do not use untrusted file-sharing sites.
+Получайте пакет с [официального сайта ИнфоТеКС](https://infotecs.ru/) или из одобренного корпоративного хранилища. Не используйте случайные файлообменники.
 
-In the examples below, the downloaded package is located at:
+Пример пути:
 
 ```text
 ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
 ```
 
-If your filename or location differs, update the commands accordingly.
-
-Inspect the package metadata:
+Проверьте тип и метаданные:
 
 ```bash
 file ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
 dpkg-deb --info ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb
 ```
 
-## Prepare the local package files
+## Подготовка локальных файлов
 
-Run these commands from the repository root:
+Из корня репозитория:
 
 ```bash
 cd ~/Projects/vipnet-docker-lab
@@ -41,16 +39,15 @@ dpkg-deb -x ~/Downloads/vipnetclient_gost_amd64_5.0.0-7877.deb local/package/
 find local/package -maxdepth 3 -type d | sort | head -80
 ```
 
-The Dockerfile copies the extracted package contents from `local/package/` into the image; it does not install the `.deb` inside the image.
+`Dockerfile` копирует содержимое `local/package/` в образ; исходный `.deb` внутри образа не устанавливается через `dpkg`. Это важно: распаковка пакета не равна полноценной установке системных зависимостей.
 
-`local/package/` contains proprietary vendor files and is excluded from Git by `.gitignore`. Keep the original package, extracted files, keys, and configuration out of public repositories and public container registries.
+`local/package/` содержит проприетарные файлы поставщика и исключён из Git. Не отправляйте эти файлы в публичный репозиторий или публичный registry.
 
-## Build the image
+## Сборка
 
 ```bash
-cd ~/Projects/vipnet-docker-lab
 sudo docker build -t vipnet5-lab:test .
 sudo docker image inspect vipnet5-lab:test --format '{{.Id}}'
 ```
 
-The image build confirms that Docker can assemble the image; it does not confirm that the VPN is connected or that routing works. Continue with [Keys and startup](02-keys-and-startup.md).
+Успешная сборка подтверждает, что Docker собрал образ, но не подтверждает запуск клиента или сетевую связность. Текущая команда по умолчанию — `vipnetclient --help`. Продолжайте с [Ключей и запуска](02-keys-and-startup.md).
