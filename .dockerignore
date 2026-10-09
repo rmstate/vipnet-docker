@@ -1,0 +1,16 @@
+.git
+backup/
+*.dst
+*.deb
+*.enc
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.log
+*.pcap
+*.pcapng
+.env
+.env.*
+!.env.example

@@ -1,0 +1,50 @@
+local/
+*.dst
+*.deb
+.env
+.env.*
+!.env.example
+
+# Proprietary ViPNet files and credentials
+*.enc
+
+# Local VPN state and backups
+backup/
+*.tar.gz
+
+# Diagnostic logs
+*.log
+
+# Additional credentials and diagnostic captures
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.pcap
+*.pcapng
+
+# ViPNet vendor binaries and local artifacts
+*.so
+*.so.*
+*.rpm
+*.tar
+*.img
+*.iso
+
+# Certificates and private keys
+*.der
+*.csr
+*.jks
+*.kdb
+*.p12
+*.p7b
+*.p7c
+*.pfx
+*.pub
+id_rsa
+id_ed25519
+
+# Local exports and container images
+*.oci
+*.docker
